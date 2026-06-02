@@ -1,0 +1,13 @@
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+__pycache__/
+*.pyc
+backend/.env
+.env
+
+.venv/
+.idea/

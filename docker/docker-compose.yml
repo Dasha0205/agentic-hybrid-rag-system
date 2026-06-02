@@ -1,0 +1,114 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: so-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ELASTICSEARCH_HOST=http://so-elastic:9200
+      - INDEX_NAME=stackoverflow_bm25
+      - QDRANT_HOST=so-qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=stackoverflow_vector
+      - EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
+      - PYTHONPATH=/app
+    depends_on:
+      - elasticsearch
+      - qdrant
+    networks:
+      - so-network
+
+  postgres:
+    image: postgres:16
+    container_name: so-postgres
+    environment:
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: rag_password
+      POSTGRES_DB: stackoverflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - so-network
+
+
+  ingest:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: so-ingest
+    environment:
+      - ELASTICSEARCH_HOST=http://so-elastic:9200
+      - INDEX_NAME=stackoverflow_bm25
+      - QDRANT_HOST=so-qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=stackoverflow_vector
+      - EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
+      - PYTHONPATH=/app
+    command: python scripts/ingest_data.py
+    depends_on:
+      - elasticsearch
+      - qdrant
+    networks:
+      - so-network
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: so-frontend
+    ports:
+      - "8501:8501"
+    networks:
+      - so-network
+    depends_on:
+      - backend
+
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@so.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    networks:
+      - so-network
+
+  elasticsearch:
+    image:  docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: so-elastic
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # turning off passwords for local dev
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    networks:
+      - so-network
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: so-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - so-network
+
+networks:
+  so-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  es_data:
+  qdrant_data:
